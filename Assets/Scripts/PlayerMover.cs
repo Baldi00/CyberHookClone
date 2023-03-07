@@ -48,11 +48,17 @@ public class PlayerMover : MonoBehaviour
 
     private Vector2 rawMoveInput;
     private Vector2 smoothMoveInput;
+    private Vector3 playerDesiredXZDirection;
     private float currentSpeed;
     private float currentSpeedPercentage;
     private bool isGrounded;
     private bool jumpPressed;
+    private bool jumpPressedContinuously;
     private bool canDoubleJump;
+
+    private Vector3 collisionWithWallNormal;
+    private bool collidingWithWall;
+    private bool isRubbingAgainstWall;
 
     private CinemachineBasicMultiChannelPerlin cinemachineNoise;
     private float currentDutchDuration;
@@ -85,13 +91,33 @@ public class PlayerMover : MonoBehaviour
         isGrounded = Physics.Raycast(transform.position + Vector3.up, Vector3.down, 1.01f);
 
         UpdatePlayerSpeed();
-        MovePlayerXZ();
+
+        CalculatePlayerDesiredXZDirection();
+        CheckCollisionWithWalls();
+
+        if (collidingWithWall)
+            canDoubleJump = true;
+
+        isRubbingAgainstWall = collidingWithWall && jumpPressedContinuously;
+
+        if (isRubbingAgainstWall)
+        {
+            rigidBody.useGravity = false;
+            MovePlayerWhileRubbingOnWall();
+        }
+        else
+        {
+            rigidBody.useGravity = true;
+            MovePlayerXZ();
+        }
+
         DoJumpLogic();
 
         currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
 
         ApplyDutchToCamera();
         ApplyNoiseToCamera();
+
     }
 
     public void SetCanDoubleJump(bool canDoubleJump)
@@ -102,6 +128,7 @@ public class PlayerMover : MonoBehaviour
     private void ReadInput()
     {
         jumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
+        jumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
         rawMoveInput = inputManager.Player.Move.ReadValue<Vector2>();
     }
 
@@ -133,27 +160,57 @@ public class PlayerMover : MonoBehaviour
             currentSpeed = minSpeed;
     }
 
-    private void MovePlayerXZ()
+    private void CalculatePlayerDesiredXZDirection()
     {
         Vector3 camForwardXZNormalized = new Vector3(mainCameraTransform.forward.x, 0, mainCameraTransform.forward.z).normalized;
         Vector3 camRightXZNormalized = new Vector3(mainCameraTransform.right.x, 0, mainCameraTransform.right.z).normalized;
         Vector3 move = camForwardXZNormalized * smoothMoveInput.y + camRightXZNormalized * smoothMoveInput.x;
 
-        Vector3 direction = currentSpeed * Time.deltaTime * move;
+        playerDesiredXZDirection = currentSpeed * Time.deltaTime * move;
+    }
+
+    private void CheckCollisionWithWalls()
+    {
         Vector3 capsulePoint1 = rigidBody.position + Vector3.up * 0.5f;
         Vector3 capsulePoint2 = rigidBody.position + Vector3.up * 1.5f;
+        collidingWithWall = Physics.CapsuleCast(
+            capsulePoint1,
+            capsulePoint2,
+            0.5f,
+            playerDesiredXZDirection,
+            out RaycastHit hit,
+            playerDesiredXZDirection.magnitude + 0.5f);
 
-        if (!Physics.CapsuleCast(capsulePoint1, capsulePoint2, 0.5f, direction, out RaycastHit hit, direction.magnitude + 0.5f))
-            rigidBody.MovePosition(rigidBody.position + direction);
+        collisionWithWallNormal = hit.normal;
+    }
+
+    private void MovePlayerXZ()
+    {
+        if (!collidingWithWall)
+            rigidBody.MovePosition(rigidBody.position + playerDesiredXZDirection);
         else
         {
-            Vector3 newDirection = Vector3.Cross(hit.normal, Vector3.up);
-            if (Vector3.Dot(newDirection, direction) < 0)
+            Vector3 newDirection = Vector3.Cross(collisionWithWallNormal, Vector3.up);
+            if (Vector3.Dot(newDirection, playerDesiredXZDirection) < 0)
                 newDirection = -newDirection;
-            newDirection *= Vector3.Dot(newDirection, direction);
+            newDirection *= Vector3.Dot(newDirection, playerDesiredXZDirection);
             rigidBody.MovePosition(rigidBody.position + newDirection);
             currentSpeed -= speedAcceleration * Time.deltaTime;
         }
+    }
+
+    private void MovePlayerWhileRubbingOnWall()
+    {
+        Vector3 move = mainCameraTransform.forward * smoothMoveInput.y;
+        Vector3 direction = currentSpeed * Time.deltaTime * move;
+
+        Vector3 newDirection = Vector3.Cross(collisionWithWallNormal, Vector3.up);
+        if (Vector3.Dot(newDirection, direction) < 0)
+            newDirection = -newDirection;
+
+        newDirection = Vector3.up * Vector3.Dot(Vector3.up, direction) + newDirection * Vector3.Dot(newDirection, direction);
+
+        rigidBody.MovePosition(rigidBody.position + newDirection);
     }
 
     private void DoJumpLogic()
