@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
 
 [DisallowMultipleComponent]
-[RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerMover : MonoBehaviour
 {
     [Header("Movement Speed")]
@@ -26,11 +26,9 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float inputSmoothTimer = 0.1f;
 
-    [Header("Jump & Gravity")]
+    [Header("Jump")]
     [SerializeField]
     private float jumpHeight = 1.0f;
-    [SerializeField]
-    private float gravityValue = -9.81f;
 
     [Header("Camera Effects")]
     [SerializeField]
@@ -45,12 +43,11 @@ public class PlayerMover : MonoBehaviour
     private float maxCameraNoise = 1.5f;
 
     private DefaultInputActions inputManager;
-    private CharacterController characterController;
+    private Rigidbody rigidBody;
     private Transform mainCameraTransform;
 
     private Vector2 rawMoveInput;
     private Vector2 smoothMoveInput;
-    private Vector3 playerVelocity;
     private float currentSpeed;
     private float currentSpeedPercentage;
     private bool isGrounded;
@@ -68,7 +65,7 @@ public class PlayerMover : MonoBehaviour
     void Awake()
     {
         mainCameraTransform = Camera.main.transform;
-        characterController = GetComponent<CharacterController>();
+        rigidBody = GetComponent<Rigidbody>();
         cinemachineNoise = cinemachineVirtualCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
         currentSpeed = playerInitialSpeed;
         smoothMoveInput = Vector2.zero;
@@ -85,7 +82,7 @@ public class PlayerMover : MonoBehaviour
         ReadInput();
         SmoothMoveInput();
 
-        isGrounded = characterController.isGrounded;
+        isGrounded = Physics.Raycast(transform.position + Vector3.up, Vector3.down, 1.01f);
 
         UpdatePlayerSpeed();
         MovePlayerXZ();
@@ -141,9 +138,22 @@ public class PlayerMover : MonoBehaviour
         Vector3 camForwardXZNormalized = new Vector3(mainCameraTransform.forward.x, 0, mainCameraTransform.forward.z).normalized;
         Vector3 camRightXZNormalized = new Vector3(mainCameraTransform.right.x, 0, mainCameraTransform.right.z).normalized;
         Vector3 move = camForwardXZNormalized * smoothMoveInput.y + camRightXZNormalized * smoothMoveInput.x;
-        playerVelocity.x = move.x;
-        playerVelocity.z = move.z;
-        characterController.Move(currentSpeed * Time.deltaTime * move);
+
+        Vector3 direction = currentSpeed * Time.deltaTime * move;
+        Vector3 capsulePoint1 = rigidBody.position + Vector3.up * 0.5f;
+        Vector3 capsulePoint2 = rigidBody.position + Vector3.up * 1.5f;
+
+        if (!Physics.CapsuleCast(capsulePoint1, capsulePoint2, 0.5f, direction, out RaycastHit hit, direction.magnitude + 0.5f))
+            rigidBody.MovePosition(rigidBody.position + direction);
+        else
+        {
+            Vector3 newDirection = Vector3.Cross(hit.normal, Vector3.up);
+            if (Vector3.Dot(newDirection, direction) < 0)
+                newDirection = -newDirection;
+            newDirection *= Vector3.Dot(newDirection, direction);
+            rigidBody.MovePosition(rigidBody.position + newDirection);
+            currentSpeed -= speedAcceleration * Time.deltaTime;
+        }
     }
 
     private void DoJumpLogic()
@@ -152,18 +162,10 @@ public class PlayerMover : MonoBehaviour
             canDoubleJump = true;
 
         if (jumpPressed && (isGrounded || canDoubleJump))
-            playerVelocity.y = jumpHeight;
-
-        ApplyGravity();
-        characterController.Move(playerVelocity.y * Time.deltaTime * Vector3.up);
+            rigidBody.AddForce((jumpHeight - rigidBody.velocity.y) * Vector3.up, ForceMode.Impulse);
 
         if (jumpPressed && !isGrounded && canDoubleJump)
             canDoubleJump = false;
-    }
-
-    private void ApplyGravity()
-    {
-        playerVelocity.y += gravityValue * Time.deltaTime;
     }
 
     private void ApplyDutchToCamera()
@@ -187,7 +189,7 @@ public class PlayerMover : MonoBehaviour
         else
             cinemachineVirtualCamera.m_Lens.Dutch = 0;
     }
-    
+
     private void ApplyNoiseToCamera()
     {
         if (rawMoveInput.sqrMagnitude > 0.1f)
