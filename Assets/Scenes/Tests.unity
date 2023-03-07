@@ -805,7 +805,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh23964
+  m_Name: pb_Mesh24018
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -1010,7 +1010,7 @@ MonoBehaviour:
     ModeOverride: 0
     LensShift: {x: 0, y: 0}
     GateFit: 2
-    m_SensorSize: {x: 1.7777778, y: 1}
+    m_SensorSize: {x: 1.7780429, y: 1}
   m_Transitions:
     m_BlendHint: 0
     m_InheritPosition: 0
@@ -1394,7 +1394,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh23942
+  m_Name: pb_Mesh23960
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -2424,15 +2424,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d53f3cc68950eb546ac64a67adc9c30b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cinemachineVirtualCamera: {fileID: 448130779}
   playerInitialSpeed: 7.5
   speedAcceleration: 2.5
   speedDeceleration: 50
-  inputSmoothTimer: 0.2
   maxSpeed: 30
   minSpeed: 7.5
-  jumpHeight: 2
+  inputSmoothTimer: 0.2
+  jumpHeight: 6
   gravityValue: -9.81
+  cinemachineVirtualCamera: {fileID: 448130779}
   maxDutch: 1
   initialDutchDuration: 0.5
   finalDutchDuration: 0.25
