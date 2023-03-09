@@ -1,12 +1,10 @@
 using Cinemachine;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.XR;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(CharacterController))]
 public class PlayerMover : MonoBehaviour
 {
     [Header("Movement Speed")]
@@ -42,8 +40,18 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float maxCameraNoise = 1.5f;
 
+    [Header("Hook")]
+    [SerializeField]
+    private GameObject hookPointPrefab;
+    [SerializeField]
+    private float hookRewindForce = 20f;
+    [SerializeField]
+    private float hookRewindSpeedAcceleration = 3.5f;
+
     private DefaultInputActions inputManager;
-    private Rigidbody rigidBody;
+    private CharacterController characterController;
+    //private Rigidbody rigidBody;
+    private ConfigurableJoint configurableJoint;
     private Transform mainCameraTransform;
 
     private Vector2 rawMoveInput;
@@ -52,12 +60,12 @@ public class PlayerMover : MonoBehaviour
     private float currentSpeed;
     private float currentSpeedPercentage;
     private bool isGrounded;
-    private bool jumpPressed;
-    private bool jumpPressedContinuously;
+    private bool isJumpPressed;
+    private bool isJumpPressedContinuously;
     private bool canDoubleJump;
 
     private Vector3 collisionWithWallNormal;
-    private bool collidingWithWall;
+    private bool isCollidingWithWall;
     private bool isRubbingAgainstWall;
 
     private CinemachineBasicMultiChannelPerlin cinemachineNoise;
@@ -65,17 +73,27 @@ public class PlayerMover : MonoBehaviour
     private float dutchChangeTimer;
     private bool invertDutch;
 
+    private bool isHooking;
+    private Rigidbody hookPointRigidBody;
+
+    private float playerVelocityY;
+
     private float unusedCurrentVelocity1;
     private float unusedCurrentVelocity2;
 
     void Awake()
     {
         mainCameraTransform = Camera.main.transform;
-        rigidBody = GetComponent<Rigidbody>();
+        characterController = GetComponent<CharacterController>();
+        //rigidBody = GetComponent<Rigidbody>();
+        configurableJoint = GetComponent<ConfigurableJoint>();
         cinemachineNoise = cinemachineVirtualCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
         currentSpeed = playerInitialSpeed;
         smoothMoveInput = Vector2.zero;
         canDoubleJump = true;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void Start()
@@ -88,36 +106,84 @@ public class PlayerMover : MonoBehaviour
         ReadInput();
         SmoothMoveInput();
 
-        isGrounded = Physics.Raycast(transform.position + Vector3.up, Vector3.down, 1.01f);
+        isGrounded = characterController.isGrounded;
 
-        UpdatePlayerSpeed();
-
-        CalculatePlayerDesiredXZDirection();
-        CheckCollisionWithWalls();
-
-        if (collidingWithWall)
-            canDoubleJump = true;
-
-        isRubbingAgainstWall = collidingWithWall && jumpPressedContinuously;
-
-        if (isRubbingAgainstWall)
-        {
-            rigidBody.useGravity = false;
-            MovePlayerWhileRubbingOnWall();
-        }
+        if (isGrounded)
+            playerVelocityY = 0;
         else
         {
-            rigidBody.useGravity = true;
-            MovePlayerXZ();
+            playerVelocityY -= 9.81f * Time.deltaTime;
+            characterController.Move(playerVelocityY * Time.deltaTime * Vector3.up);
         }
+
+        //CheckCollisionWithGround();
+
+        UpdatePlayerSpeed();
+        CalculatePlayerDesiredXZDirection();
+        //CheckCollisionWithWalls();
+
+        //if (isCollidingWithWall)
+        //    canDoubleJump = true;
+
+        //isRubbingAgainstWall = isCollidingWithWall && isJumpPressedContinuously;
+
+        //if (isRubbingAgainstWall)
+        //    MovePlayerWhileRubbingOnWall();
+        //else
+            MovePlayerXZ();
+
+        //if (!isGrounded)
+        //    transform.Translate(-9.81f * Vector3.up * Time.deltaTime);
 
         DoJumpLogic();
 
         currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
 
-        ApplyDutchToCamera();
-        ApplyNoiseToCamera();
+        //ApplyDutchToCamera();
+        //ApplyNoiseToCamera();
 
+        //bool mousePressed = Mouse.current.leftButton.wasPressedThisFrame;
+        //if (mousePressed && Physics.Raycast(mainCameraTransform.position, mainCameraTransform.forward, out RaycastHit hit) && !hit.collider.CompareTag("Player"))
+        //{
+        //    isHooking = true;
+        //    hookPointRigidBody = Instantiate(hookPointPrefab, hit.point, Quaternion.identity).GetComponent<Rigidbody>();
+        //    configurableJoint.connectedBody = hookPointRigidBody;
+        //    configurableJoint.xMotion = ConfigurableJointMotion.Limited;
+        //    configurableJoint.yMotion = ConfigurableJointMotion.Limited;
+        //    configurableJoint.zMotion = ConfigurableJointMotion.Limited;
+        //    SoftJointLimit limit = new SoftJointLimit();
+        //    limit.limit = Vector3.Distance(mainCameraTransform.position, hookPointRigidBody.transform.position);
+        //    configurableJoint.linearLimit = limit;
+        //}
+
+        //if (isHooking && isJumpPressed)
+        //{
+        //    isHooking = false;
+        //    configurableJoint.connectedBody = null;
+        //    configurableJoint.xMotion = ConfigurableJointMotion.Free;
+        //    configurableJoint.yMotion = ConfigurableJointMotion.Free;
+        //    configurableJoint.zMotion = ConfigurableJointMotion.Free;
+        //    Destroy(hookPointRigidBody.gameObject);
+        //}
+
+        //bool mousePressedContinuously = Mouse.current.leftButton.isPressed;
+        //if (mousePressedContinuously && isHooking)
+        //{
+        //    SoftJointLimit limit = new SoftJointLimit();
+        //    limit.limit = Mathf.Max(0.1f, configurableJoint.linearLimit.limit - hookRewindForce * Time.deltaTime);
+        //    configurableJoint.linearLimit = limit;
+
+        //    currentSpeed += hookRewindSpeedAcceleration * Time.deltaTime;
+        //    if (currentSpeed > maxSpeed)
+        //        currentSpeed = maxSpeed;
+        //}
+
+    }
+
+    void OnGUI()
+    {
+        GUI.Label(new Rect(10, 10, 100, 20), "Speed: " + currentSpeed);
+        GUI.Label(new Rect(10, 30, 100, 20), "Grounded: " + isGrounded);
     }
 
     public void SetCanDoubleJump(bool canDoubleJump)
@@ -127,8 +193,8 @@ public class PlayerMover : MonoBehaviour
 
     private void ReadInput()
     {
-        jumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
-        jumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
+        isJumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
+        isJumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
         rawMoveInput = inputManager.Player.Move.ReadValue<Vector2>();
     }
 
@@ -171,32 +237,44 @@ public class PlayerMover : MonoBehaviour
 
     private void CheckCollisionWithWalls()
     {
-        Vector3 capsulePoint1 = rigidBody.position + Vector3.up * 0.5f;
-        Vector3 capsulePoint2 = rigidBody.position + Vector3.up * 1.5f;
-        collidingWithWall = Physics.CapsuleCast(
+        Vector3 capsulePoint1 = transform.position + Vector3.up * 0.5f;
+        Vector3 capsulePoint2 = transform.position + Vector3.up * 1.5f;
+        isCollidingWithWall = Physics.CapsuleCast(
             capsulePoint1,
             capsulePoint2,
             0.5f,
-            playerDesiredXZDirection,
+            playerDesiredXZDirection.normalized,
             out RaycastHit hit,
             playerDesiredXZDirection.magnitude + 0.5f);
 
         collisionWithWallNormal = hit.normal;
     }
 
+    private void CheckCollisionWithGround()
+    {
+        Vector3 capsulePoint1 = transform.position + Vector3.up * 0.5f;
+        Vector3 capsulePoint2 = transform.position + Vector3.up * 1.5f;
+        isGrounded = Physics.CapsuleCast(
+            capsulePoint1,
+            capsulePoint2,
+            0.5f,
+            Vector3.down,
+            10f * Time.deltaTime);
+    }
+
     private void MovePlayerXZ()
     {
-        if (!collidingWithWall)
-            rigidBody.MovePosition(rigidBody.position + playerDesiredXZDirection);
-        else
-        {
-            Vector3 newDirection = Vector3.Cross(collisionWithWallNormal, Vector3.up);
-            if (Vector3.Dot(newDirection, playerDesiredXZDirection) < 0)
-                newDirection = -newDirection;
-            newDirection *= Vector3.Dot(newDirection, playerDesiredXZDirection);
-            rigidBody.MovePosition(rigidBody.position + newDirection);
-            currentSpeed -= speedAcceleration * Time.deltaTime;
-        }
+        //if (!isCollidingWithWall)
+            characterController.Move(playerDesiredXZDirection);
+        //else
+        //{
+        //    Vector3 newDirection = Vector3.Cross(collisionWithWallNormal, Vector3.up);
+        //    if (Vector3.Dot(newDirection, playerDesiredXZDirection) < 0)
+        //        newDirection = -newDirection;
+        //    newDirection *= Vector3.Dot(newDirection, playerDesiredXZDirection);
+        //    transform.Translate(newDirection);
+        //    currentSpeed -= speedAcceleration * Time.deltaTime;
+        //}
     }
 
     private void MovePlayerWhileRubbingOnWall()
@@ -210,7 +288,7 @@ public class PlayerMover : MonoBehaviour
 
         newDirection = Vector3.up * Vector3.Dot(Vector3.up, direction) + newDirection * Vector3.Dot(newDirection, direction);
 
-        rigidBody.MovePosition(rigidBody.position + newDirection);
+        //rigidBody.MovePosition(rigidBody.position + newDirection);
     }
 
     private void DoJumpLogic()
@@ -218,10 +296,14 @@ public class PlayerMover : MonoBehaviour
         if (isGrounded)
             canDoubleJump = true;
 
-        if (jumpPressed && (isGrounded || canDoubleJump))
-            rigidBody.AddForce((jumpHeight - rigidBody.velocity.y) * Vector3.up, ForceMode.Impulse);
+        if (isJumpPressed && (isGrounded || canDoubleJump))
+        {
+            playerVelocityY = jumpHeight;
+            characterController.Move(playerVelocityY * Time.deltaTime * Vector3.up);
+            //rigidBody.AddForce((jumpHeight - rigidBody.velocity.y) * Vector3.up, ForceMode.Impulse);
+        }
 
-        if (jumpPressed && !isGrounded && canDoubleJump)
+        if (isJumpPressed && !isGrounded && canDoubleJump)
             canDoubleJump = false;
     }
 
@@ -234,7 +316,12 @@ public class PlayerMover : MonoBehaviour
         {
             if (dutchChangeTimer >= currentDutchDuration)
             {
-                float dutchAngle = Mathf.Lerp(0, maxDutch, currentSpeedPercentage);
+                float dutchAngle;
+                if (currentSpeedPercentage < 0.85f)
+                    dutchAngle = Mathf.Lerp(0, maxDutch, currentSpeedPercentage);
+                else
+                    dutchAngle = Mathf.Lerp(0, maxDutch, 0.5f);
+
                 if (invertDutch)
                     dutchAngle = -dutchAngle;
 
