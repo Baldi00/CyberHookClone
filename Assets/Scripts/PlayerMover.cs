@@ -4,9 +4,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
+using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(ConfigurableJoint))]
 public class PlayerMover : MonoBehaviour
 {
     [Header("Movement Speed")]
@@ -32,6 +35,18 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float gravityValue = -9.81f;
 
+    [Header("Hook")]
+    [SerializeField]
+    private GameObject hookPointPrefab;
+    [SerializeField]
+    private float hookRewindForce = 20f;
+    [SerializeField]
+    private float hookRewindSpeedAcceleration = 3.5f;
+    [SerializeField]
+    private LineRenderer hookLineRenderer;
+    [SerializeField]
+    private Transform handPositionTransform;
+
     [Header("Camera Effects")]
     [SerializeField]
     private CinemachineVirtualCamera cinemachineVirtualCamera;
@@ -46,6 +61,8 @@ public class PlayerMover : MonoBehaviour
 
     private DefaultInputActions inputManager;
     private CharacterController characterController;
+    private Rigidbody rigidBody;
+    private ConfigurableJoint configurableJoint;
     private Transform mainCameraTransform;
 
     private Vector2 rawMoveInput;
@@ -62,6 +79,11 @@ public class PlayerMover : MonoBehaviour
     private float dutchChangeTimer;
     private bool invertDutch;
 
+    private bool isHooking;
+    private Rigidbody hookPointRigidBody;
+
+    private bool isUsingRigidBody;
+
     private float unusedCurrentVelocity1;
     private float unusedCurrentVelocity2;
 
@@ -69,10 +91,15 @@ public class PlayerMover : MonoBehaviour
     {
         mainCameraTransform = Camera.main.transform;
         characterController = GetComponent<CharacterController>();
+        rigidBody = GetComponent<Rigidbody>();
+        configurableJoint = GetComponent<ConfigurableJoint>();
         cinemachineNoise = cinemachineVirtualCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
         currentSpeed = playerInitialSpeed;
         smoothMoveInput = Vector2.zero;
         canDoubleJump = true;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void Start()
@@ -82,6 +109,9 @@ public class PlayerMover : MonoBehaviour
 
     void Update()
     {
+        if (Keyboard.current.rKey.wasPressedThisFrame)
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+
         ReadInput();
         SmoothMoveInput();
 
@@ -95,6 +125,67 @@ public class PlayerMover : MonoBehaviour
 
         ApplyDutchToCamera();
         ApplyNoiseToCamera();
+
+        bool mousePressed = Mouse.current.leftButton.wasPressedThisFrame;
+        if (mousePressed && Physics.Raycast(mainCameraTransform.position, mainCameraTransform.forward, out RaycastHit hit) && !hit.collider.CompareTag("Player"))
+        {
+            isHooking = true;
+
+            rigidBody.isKinematic = false;
+            rigidBody.velocity = Vector3.zero;
+            characterController.enabled = false;
+            isUsingRigidBody = true;
+
+            hookPointRigidBody = Instantiate(hookPointPrefab, hit.point, Quaternion.identity).GetComponent<Rigidbody>();
+            configurableJoint.connectedBody = hookPointRigidBody;
+            configurableJoint.xMotion = ConfigurableJointMotion.Limited;
+            configurableJoint.yMotion = ConfigurableJointMotion.Limited;
+            configurableJoint.zMotion = ConfigurableJointMotion.Limited;
+            SoftJointLimit limit = new SoftJointLimit();
+            limit.limit = Vector3.Distance(mainCameraTransform.position, hookPointRigidBody.transform.position);
+            configurableJoint.linearLimit = limit;
+        }
+
+        if (isHooking && jumpPressed)
+        {
+            isHooking = false;
+
+            rigidBody.isKinematic = false;
+            characterController.enabled = true;
+            isUsingRigidBody = false;
+
+            configurableJoint.connectedBody = null;
+            configurableJoint.xMotion = ConfigurableJointMotion.Free;
+            configurableJoint.yMotion = ConfigurableJointMotion.Free;
+            configurableJoint.zMotion = ConfigurableJointMotion.Free;
+            Destroy(hookPointRigidBody.gameObject);
+        }
+
+        bool mousePressedContinuously = Mouse.current.leftButton.isPressed;
+        if (mousePressedContinuously && isHooking)
+        {
+            SoftJointLimit limit = new SoftJointLimit();
+            limit.limit = Mathf.Max(0.1f, configurableJoint.linearLimit.limit - hookRewindForce * Time.deltaTime);
+            configurableJoint.linearLimit = limit;
+
+            currentSpeed += hookRewindSpeedAcceleration * Time.deltaTime;
+            if (currentSpeed > maxSpeed)
+                currentSpeed = maxSpeed;
+        }
+    }
+
+    void LateUpdate()
+    {
+        if (isHooking)
+        {
+            hookLineRenderer.enabled = true;
+            hookLineRenderer.SetPosition(0, handPositionTransform.position);
+            hookLineRenderer.SetPosition(1, hookPointRigidBody.transform.position);
+        }
+        else
+        {
+            hookLineRenderer.enabled = false;
+        }
     }
 
     public void SetCanDoubleJump(bool canDoubleJump)
@@ -143,7 +234,11 @@ public class PlayerMover : MonoBehaviour
         Vector3 move = camForwardXZNormalized * smoothMoveInput.y + camRightXZNormalized * smoothMoveInput.x;
         playerVelocity.x = move.x;
         playerVelocity.z = move.z;
-        characterController.Move(currentSpeed * Time.deltaTime * move);
+
+        if (!isUsingRigidBody)
+            characterController.Move(currentSpeed * Time.deltaTime * move);
+        else
+            rigidBody.AddForce(currentSpeed * Time.deltaTime * move, ForceMode.VelocityChange);
     }
 
     private void DoJumpLogic()
@@ -154,8 +249,11 @@ public class PlayerMover : MonoBehaviour
         if (jumpPressed && (isGrounded || canDoubleJump))
             playerVelocity.y = jumpHeight;
 
-        ApplyGravity();
-        characterController.Move(playerVelocity.y * Time.deltaTime * Vector3.up);
+        if (!isUsingRigidBody)
+        {
+            ApplyGravity();
+            characterController.Move(playerVelocity.y * Time.deltaTime * Vector3.up);
+        }
 
         if (jumpPressed && !isGrounded && canDoubleJump)
             canDoubleJump = false;
@@ -187,7 +285,7 @@ public class PlayerMover : MonoBehaviour
         else
             cinemachineVirtualCamera.m_Lens.Dutch = 0;
     }
-    
+
     private void ApplyNoiseToCamera()
     {
         if (rawMoveInput.sqrMagnitude > 0.1f)
