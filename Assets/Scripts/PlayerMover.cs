@@ -68,11 +68,17 @@ public class PlayerMover : MonoBehaviour
     private Vector2 rawMoveInput;
     private Vector2 smoothMoveInput;
     private Vector3 playerVelocity;
+    private Vector3 playerDesiredXZDirection;
     private float currentSpeed;
     private float currentSpeedPercentage;
     private bool isGrounded;
     private bool jumpPressed;
+    private bool jumpPressedContinuously;
     private bool canDoubleJump;
+
+    private bool isCollidingWithWall;
+    private Vector3 collisionWithWallNormal;
+    private bool isRubbingAgainstWall;
 
     private CinemachineBasicMultiChannelPerlin cinemachineNoise;
     private float currentDutchDuration;
@@ -118,7 +124,29 @@ public class PlayerMover : MonoBehaviour
         isGrounded = characterController.isGrounded;
 
         UpdatePlayerSpeed();
-        MovePlayerXZ();
+
+        Vector3 capsulePoint1 = transform.position + Vector3.up * 0.5f;
+        Vector3 capsulePoint2 = transform.position + Vector3.up * 1.5f;
+        isCollidingWithWall = Physics.CapsuleCast(
+            capsulePoint1,
+            capsulePoint2,
+            0.5f,
+            playerDesiredXZDirection,
+            out RaycastHit capsuleCastHit,
+            playerDesiredXZDirection.magnitude + 0.5f);
+
+        collisionWithWallNormal = capsuleCastHit.normal;
+
+        if (isCollidingWithWall)
+            canDoubleJump = true;
+
+        isRubbingAgainstWall = isCollidingWithWall && jumpPressedContinuously;
+
+        if (isRubbingAgainstWall)
+            MovePlayerWhileRubbingOnWall();
+        else
+            MovePlayerXZ();
+
         DoJumpLogic();
 
         currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
@@ -172,6 +200,7 @@ public class PlayerMover : MonoBehaviour
             if (currentSpeed > maxSpeed)
                 currentSpeed = maxSpeed;
         }
+
     }
 
     void LateUpdate()
@@ -188,6 +217,11 @@ public class PlayerMover : MonoBehaviour
         }
     }
 
+    void OnGUI()
+    {
+        GUI.Label(new Rect(10f, 10f, 100f, 40f), "" + isCollidingWithWall);
+    }
+
     public void SetCanDoubleJump(bool canDoubleJump)
     {
         this.canDoubleJump = canDoubleJump;
@@ -196,6 +230,7 @@ public class PlayerMover : MonoBehaviour
     private void ReadInput()
     {
         jumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
+        jumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
         rawMoveInput = inputManager.Player.Move.ReadValue<Vector2>();
     }
 
@@ -235,10 +270,12 @@ public class PlayerMover : MonoBehaviour
         playerVelocity.x = move.x;
         playerVelocity.z = move.z;
 
+        playerDesiredXZDirection = currentSpeed * Time.deltaTime * move;
+
         if (!isUsingRigidBody)
-            characterController.Move(currentSpeed * Time.deltaTime * move);
+            characterController.Move(playerDesiredXZDirection);
         else
-            rigidBody.AddForce(currentSpeed * Time.deltaTime * move, ForceMode.VelocityChange);
+            rigidBody.AddForce(playerDesiredXZDirection, ForceMode.VelocityChange);
     }
 
     private void DoJumpLogic()
@@ -257,6 +294,20 @@ public class PlayerMover : MonoBehaviour
 
         if (jumpPressed && !isGrounded && canDoubleJump)
             canDoubleJump = false;
+    }
+
+    private void MovePlayerWhileRubbingOnWall()
+    {
+        Vector3 move = mainCameraTransform.forward * smoothMoveInput.y;
+        Vector3 direction = currentSpeed * Time.deltaTime * move;
+
+        Vector3 newDirection = Vector3.Cross(collisionWithWallNormal, Vector3.up);
+        if (Vector3.Dot(newDirection, direction) < 0)
+            newDirection = -newDirection;
+
+        newDirection = Vector3.up * Vector3.Dot(Vector3.up, direction) + newDirection * Vector3.Dot(newDirection, direction);
+
+        characterController.Move(newDirection);
     }
 
     private void ApplyGravity()
