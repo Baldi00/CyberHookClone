@@ -1,4 +1,5 @@
 using Cinemachine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -65,15 +66,20 @@ public class PlayerMover : MonoBehaviour
     private ConfigurableJoint configurableJoint;
     private Transform mainCameraTransform;
 
+    private bool isUsingRigidBody;
+
     private Vector2 rawMoveInput;
     private Vector2 smoothMoveInput;
-    private Vector3 playerVelocity;
     private Vector3 playerDesiredXZDirection;
+    private Vector3 playerVelocity;
     private float currentSpeed;
     private float currentSpeedPercentage;
+
     private bool isGrounded;
-    private bool jumpPressed;
-    private bool jumpPressedContinuously;
+    private bool isMousePressed;
+    private bool isMousePressedContinuously;
+    private bool isJumpPressed;
+    private bool isJumpPressedContinuously;
     private bool canDoubleJump;
 
     private bool isCollidingWithWall;
@@ -87,8 +93,6 @@ public class PlayerMover : MonoBehaviour
 
     private bool isHooking;
     private Rigidbody hookPointRigidBody;
-
-    private bool isUsingRigidBody;
 
     private float unusedCurrentVelocity1;
     private float unusedCurrentVelocity2;
@@ -110,97 +114,127 @@ public class PlayerMover : MonoBehaviour
 
     void Start()
     {
+        // Called in Start cause GameManager.Instance is instantiated in Awake
         inputManager = GameManager.Instance.inputManager;
     }
 
     void Update()
     {
+        // TODO: Remove from here
+        // Reload scene for testing
         if (Keyboard.current.rKey.wasPressedThisFrame)
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
 
         ReadInput();
         SmoothMoveInput();
-
-        isGrounded = characterController.isGrounded;
+        CheckIfPlayerIsGrounded();
 
         UpdatePlayerSpeed();
+        currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
 
-        Vector3 capsulePoint1 = transform.position + Vector3.up * 0.5f;
-        Vector3 capsulePoint2 = transform.position + Vector3.up * 1.5f;
-        isCollidingWithWall = Physics.CapsuleCast(
-            capsulePoint1,
-            capsulePoint2,
-            0.5f,
-            playerDesiredXZDirection,
-            out RaycastHit capsuleCastHit,
-            playerDesiredXZDirection.magnitude + 0.5f);
-
-        collisionWithWallNormal = capsuleCastHit.normal;
-
-        if (isCollidingWithWall)
-            canDoubleJump = true;
-
-        isRubbingAgainstWall = isCollidingWithWall && jumpPressedContinuously;
+        CheckCollisionWithWalls();
+        isRubbingAgainstWall = isCollidingWithWall && isJumpPressedContinuously;
 
         if (isRubbingAgainstWall)
             MovePlayerWhileRubbingOnWall();
         else
-            MovePlayerXZ();
+            MovePlayerOnXZ();
 
+        if (IsPlayerStartingHooking(out RaycastHit hit))
+            StartHooking(hit);
+
+        if (IsPlayerStoppingHooking())
+            StopHooking();
+
+        if (IsPlayerRewindingHook())
+            RewindHook();
+
+        CheckIfCanDoubleJump();
         DoJumpLogic();
-
-        currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
 
         ApplyDutchToCamera();
         ApplyNoiseToCamera();
+    }
 
-        bool mousePressed = Mouse.current.leftButton.wasPressedThisFrame;
-        if (mousePressed && Physics.Raycast(mainCameraTransform.position, mainCameraTransform.forward, out RaycastHit hit) && !hit.collider.CompareTag("Player"))
-        {
-            isHooking = true;
+    private void CheckIfPlayerIsGrounded()
+    {
+        if (isUsingRigidBody)
+            isGrounded = DoCapsuleCast(Vector3.down, 1);
+        else
+            isGrounded = characterController.isGrounded;
+    }
 
-            rigidBody.isKinematic = false;
-            rigidBody.velocity = Vector3.zero;
-            characterController.enabled = false;
-            isUsingRigidBody = true;
+    private void RewindHook()
+    {
+        float newLimit = Mathf.Max(0.1f, configurableJoint.linearLimit.limit - hookRewindForce * Time.deltaTime);
+        SetJointLimit(newLimit);
 
-            hookPointRigidBody = Instantiate(hookPointPrefab, hit.point, Quaternion.identity).GetComponent<Rigidbody>();
-            configurableJoint.connectedBody = hookPointRigidBody;
-            configurableJoint.xMotion = ConfigurableJointMotion.Limited;
-            configurableJoint.yMotion = ConfigurableJointMotion.Limited;
-            configurableJoint.zMotion = ConfigurableJointMotion.Limited;
-            SoftJointLimit limit = new SoftJointLimit();
-            limit.limit = Vector3.Distance(mainCameraTransform.position, hookPointRigidBody.transform.position);
-            configurableJoint.linearLimit = limit;
-        }
+        currentSpeed += hookRewindSpeedAcceleration * Time.deltaTime;
+        if (currentSpeed > maxSpeed)
+            currentSpeed = maxSpeed;
+    }
 
-        if (isHooking && jumpPressed)
-        {
-            isHooking = false;
+    private bool IsPlayerRewindingHook()
+    {
+        return isMousePressedContinuously && isHooking;
+    }
 
-            rigidBody.isKinematic = false;
-            characterController.enabled = true;
-            isUsingRigidBody = false;
+    private void StopHooking()
+    {
+        isHooking = false;
 
-            configurableJoint.connectedBody = null;
-            configurableJoint.xMotion = ConfigurableJointMotion.Free;
-            configurableJoint.yMotion = ConfigurableJointMotion.Free;
-            configurableJoint.zMotion = ConfigurableJointMotion.Free;
-            Destroy(hookPointRigidBody.gameObject);
-        }
+        rigidBody.isKinematic = false;
+        characterController.enabled = true;
+        isUsingRigidBody = isHooking;
 
-        bool mousePressedContinuously = Mouse.current.leftButton.isPressed;
-        if (mousePressedContinuously && isHooking)
-        {
-            SoftJointLimit limit = new SoftJointLimit();
-            limit.limit = Mathf.Max(0.1f, configurableJoint.linearLimit.limit - hookRewindForce * Time.deltaTime);
-            configurableJoint.linearLimit = limit;
+        SetJointConnectedBody(null);
+        SetJointMotion(ConfigurableJointMotion.Free);
+        Destroy(hookPointRigidBody.gameObject);
+    }
 
-            currentSpeed += hookRewindSpeedAcceleration * Time.deltaTime;
-            if (currentSpeed > maxSpeed)
-                currentSpeed = maxSpeed;
-        }
+    private bool IsPlayerStoppingHooking()
+    {
+        return isHooking && isJumpPressed;
+    }
 
+    private void StartHooking(RaycastHit hit)
+    {
+        isHooking = true;
+
+        rigidBody.isKinematic = false;
+        rigidBody.velocity = Vector3.zero;
+        characterController.enabled = false;
+        isUsingRigidBody = isHooking;
+
+        hookPointRigidBody = Instantiate(hookPointPrefab, hit.point, Quaternion.identity).GetComponent<Rigidbody>();
+        float distanceFromHookPoint = Vector3.Distance(mainCameraTransform.position, hookPointRigidBody.transform.position);
+
+        SetJointConnectedBody(hookPointRigidBody);
+        SetJointMotion(ConfigurableJointMotion.Limited);
+        SetJointLimit(distanceFromHookPoint);
+    }
+
+    private void CheckCollisionWithWalls()
+    {
+        float distance = playerDesiredXZDirection.magnitude + 0.5f;
+        isCollidingWithWall = DoCapsuleCast(playerDesiredXZDirection.normalized, distance, out RaycastHit hit);
+        if (isCollidingWithWall)
+            collisionWithWallNormal = hit.normal;
+    }
+
+    private bool DoCapsuleCast(Vector3 direction, float distance, out RaycastHit hit)
+    {
+        hit = new RaycastHit();
+        Vector3 capsulePoint1 = transform.position + Vector3.up * 0.5f;
+        Vector3 capsulePoint2 = transform.position + Vector3.up * 1.5f;
+        return Physics.CapsuleCast(capsulePoint1, capsulePoint2, 0.5f - Physics.defaultContactOffset, direction, out hit, distance) &&
+            !hit.collider.CompareTag("Player");
+    }
+
+    private bool DoCapsuleCast(Vector3 direction, float distance)
+    {
+        RaycastHit unused;
+        return DoCapsuleCast(direction, distance, out unused);
     }
 
     void LateUpdate()
@@ -212,14 +246,15 @@ public class PlayerMover : MonoBehaviour
             hookLineRenderer.SetPosition(1, hookPointRigidBody.transform.position);
         }
         else
-        {
             hookLineRenderer.enabled = false;
-        }
     }
 
     void OnGUI()
     {
-        GUI.Label(new Rect(10f, 10f, 100f, 40f), "" + isCollidingWithWall);
+        GUI.Label(new Rect(10f, 10f, 200f, 20f), "Speed: " + currentSpeed);
+        GUI.Label(new Rect(10f, 30f, 200f, 20f), "Grounded: " + isGrounded);
+        GUI.Label(new Rect(10f, 50f, 200f, 20f), "Double jump: " + canDoubleJump);
+        GUI.Label(new Rect(10f, 70f, 200f, 20f), "Wall collision: " + isCollidingWithWall);
     }
 
     public void SetCanDoubleJump(bool canDoubleJump)
@@ -229,8 +264,10 @@ public class PlayerMover : MonoBehaviour
 
     private void ReadInput()
     {
-        jumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
-        jumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
+        isJumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
+        isJumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
+        isMousePressed = Mouse.current.leftButton.wasPressedThisFrame;
+        isMousePressedContinuously = Mouse.current.leftButton.isPressed;
         rawMoveInput = inputManager.Player.Move.ReadValue<Vector2>();
     }
 
@@ -242,10 +279,15 @@ public class PlayerMover : MonoBehaviour
 
     private void UpdatePlayerSpeed()
     {
-        if (rawMoveInput.sqrMagnitude > 0.1f || !isGrounded)
+        if (IsPlayerMoving() || !isGrounded)
             IncrementSpeed();
         else
             DecrementSpeed();
+    }
+
+    private bool IsPlayerMoving()
+    {
+        return rawMoveInput.sqrMagnitude > 0.1f;
     }
 
     private void IncrementSpeed()
@@ -262,7 +304,7 @@ public class PlayerMover : MonoBehaviour
             currentSpeed = minSpeed;
     }
 
-    private void MovePlayerXZ()
+    private void MovePlayerOnXZ()
     {
         Vector3 camForwardXZNormalized = new Vector3(mainCameraTransform.forward.x, 0, mainCameraTransform.forward.z).normalized;
         Vector3 camRightXZNormalized = new Vector3(mainCameraTransform.right.x, 0, mainCameraTransform.right.z).normalized;
@@ -280,10 +322,8 @@ public class PlayerMover : MonoBehaviour
 
     private void DoJumpLogic()
     {
-        if (isGrounded)
-            canDoubleJump = true;
 
-        if (jumpPressed && (isGrounded || canDoubleJump))
+        if (isJumpPressed && (isGrounded || canDoubleJump))
             playerVelocity.y = jumpHeight;
 
         if (!isUsingRigidBody)
@@ -292,7 +332,7 @@ public class PlayerMover : MonoBehaviour
             characterController.Move(playerVelocity.y * Time.deltaTime * Vector3.up);
         }
 
-        if (jumpPressed && !isGrounded && canDoubleJump)
+        if (isJumpPressed && !isGrounded && canDoubleJump)
             canDoubleJump = false;
     }
 
@@ -307,7 +347,10 @@ public class PlayerMover : MonoBehaviour
 
         newDirection = Vector3.up * Vector3.Dot(Vector3.up, direction) + newDirection * Vector3.Dot(newDirection, direction);
 
-        characterController.Move(newDirection);
+        if (!isUsingRigidBody)
+            characterController.Move(newDirection);
+        else
+            rigidBody.AddForce(newDirection, ForceMode.VelocityChange);
     }
 
     private void ApplyGravity()
@@ -320,7 +363,7 @@ public class PlayerMover : MonoBehaviour
         currentDutchDuration = Mathf.Lerp(initialDutchDuration, finalDutchDuration, currentSpeedPercentage);
         dutchChangeTimer += Time.deltaTime;
 
-        if (isGrounded && rawMoveInput.sqrMagnitude > 0.1f)
+        if (isGrounded && IsPlayerMoving())
         {
             if (dutchChangeTimer >= currentDutchDuration)
             {
@@ -339,10 +382,41 @@ public class PlayerMover : MonoBehaviour
 
     private void ApplyNoiseToCamera()
     {
-        if (rawMoveInput.sqrMagnitude > 0.1f)
+        if (IsPlayerMoving())
             cinemachineNoise.m_AmplitudeGain = Mathf.Lerp(0, maxCameraNoise, currentSpeedPercentage);
         else
             cinemachineNoise.m_AmplitudeGain = 0;
     }
 
+    private void SetJointConnectedBody(Rigidbody rigidbody)
+    {
+        configurableJoint.connectedBody = rigidbody;
+    }
+
+    private void SetJointMotion(ConfigurableJointMotion motion)
+    {
+        configurableJoint.xMotion = motion;
+        configurableJoint.yMotion = motion;
+        configurableJoint.zMotion = motion;
+    }
+
+    private void SetJointLimit(float limit)
+    {
+        configurableJoint.linearLimit = new SoftJointLimit() { limit = limit };
+    }
+
+    private void CheckIfCanDoubleJump()
+    {
+        if (isGrounded || isCollidingWithWall)
+            canDoubleJump = true;
+    }
+
+    private bool IsPlayerStartingHooking(out RaycastHit hit)
+    {
+        hit = new RaycastHit();
+        return isMousePressed &&
+            Physics.Raycast(mainCameraTransform.position, mainCameraTransform.forward, out hit) &&
+            !hit.collider.CompareTag("Player") &&
+            !isHooking;
+    }
 }
