@@ -34,6 +34,8 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float jumpHeight = 1.0f;
     [SerializeField]
+    private int maxJumps = 2;
+    [SerializeField]
     private float gravityValue = -9.81f;
 
     [Header("Hook")]
@@ -80,7 +82,7 @@ public class PlayerMover : MonoBehaviour
     private bool isMousePressedContinuously;
     private bool isJumpPressed;
     private bool isJumpPressedContinuously;
-    private bool canDoubleJump;
+    private float availableJumpsCount;
 
     private bool isCollidingWithWall;
     private Vector3 collisionWithWallNormal;
@@ -106,7 +108,7 @@ public class PlayerMover : MonoBehaviour
         cinemachineNoise = cinemachineVirtualCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
         currentSpeed = playerInitialSpeed;
         smoothMoveInput = Vector2.zero;
-        canDoubleJump = true;
+        availableJumpsCount = 2;
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -129,11 +131,21 @@ public class PlayerMover : MonoBehaviour
         SmoothMoveInput();
         CheckIfPlayerIsGrounded();
 
+        if (isGrounded && playerVelocity.y <= 0)
+        {
+            playerVelocity.y = 0;
+            availableJumpsCount = 2;
+        }
+
         UpdatePlayerSpeed();
         currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
 
         CheckCollisionWithWalls();
-        isRubbingAgainstWall = isCollidingWithWall && isJumpPressedContinuously;
+        if (isCollidingWithWall && !isGrounded)
+            availableJumpsCount = 1;
+
+        ComputePlayerDesiredDirection();
+        CheckIfRubbingAgainstWall();
 
         if (isRubbingAgainstWall)
             MovePlayerWhileRubbingOnWall();
@@ -149,11 +161,32 @@ public class PlayerMover : MonoBehaviour
         if (IsPlayerRewindingHook())
             RewindHook();
 
-        CheckIfCanDoubleJump();
         DoJumpLogic();
 
         ApplyDutchToCamera();
         ApplyNoiseToCamera();
+    }
+
+    void LateUpdate()
+    {
+        if (isHooking)
+        {
+            hookLineRenderer.enabled = true;
+            hookLineRenderer.SetPosition(0, handPositionTransform.position);
+            hookLineRenderer.SetPosition(1, hookPointRigidBody.transform.position);
+        }
+        else
+            hookLineRenderer.enabled = false;
+    }
+
+    void OnGUI()
+    {
+        GUI.Label(new Rect(10f, 10f, 200f, 20f), "Speed: " + currentSpeed);
+        GUI.Label(new Rect(10f, 30f, 200f, 20f), "Grounded: " + isGrounded);
+        GUI.Label(new Rect(10f, 50f, 200f, 20f), "Jump count: " + availableJumpsCount);
+        GUI.Label(new Rect(10f, 70f, 200f, 20f), "Wall collision: " + isCollidingWithWall);
+        GUI.Label(new Rect(10f, 90f, 200f, 20f), "Rubbing: " + isRubbingAgainstWall);
+        GUI.Label(new Rect(10f, 110f, 200f, 20f), "RB: " + isUsingRigidBody);
     }
 
     private void CheckIfPlayerIsGrounded()
@@ -200,6 +233,7 @@ public class PlayerMover : MonoBehaviour
     private void StartHooking(RaycastHit hit)
     {
         isHooking = true;
+        availableJumpsCount = 2;
 
         rigidBody.isKinematic = false;
         rigidBody.velocity = Vector3.zero;
@@ -235,31 +269,6 @@ public class PlayerMover : MonoBehaviour
     {
         RaycastHit unused;
         return DoCapsuleCast(direction, distance, out unused);
-    }
-
-    void LateUpdate()
-    {
-        if (isHooking)
-        {
-            hookLineRenderer.enabled = true;
-            hookLineRenderer.SetPosition(0, handPositionTransform.position);
-            hookLineRenderer.SetPosition(1, hookPointRigidBody.transform.position);
-        }
-        else
-            hookLineRenderer.enabled = false;
-    }
-
-    void OnGUI()
-    {
-        GUI.Label(new Rect(10f, 10f, 200f, 20f), "Speed: " + currentSpeed);
-        GUI.Label(new Rect(10f, 30f, 200f, 20f), "Grounded: " + isGrounded);
-        GUI.Label(new Rect(10f, 50f, 200f, 20f), "Double jump: " + canDoubleJump);
-        GUI.Label(new Rect(10f, 70f, 200f, 20f), "Wall collision: " + isCollidingWithWall);
-    }
-
-    public void SetCanDoubleJump(bool canDoubleJump)
-    {
-        this.canDoubleJump = canDoubleJump;
     }
 
     private void ReadInput()
@@ -304,7 +313,7 @@ public class PlayerMover : MonoBehaviour
             currentSpeed = minSpeed;
     }
 
-    private void MovePlayerOnXZ()
+    private void ComputePlayerDesiredDirection()
     {
         Vector3 camForwardXZNormalized = new Vector3(mainCameraTransform.forward.x, 0, mainCameraTransform.forward.z).normalized;
         Vector3 camRightXZNormalized = new Vector3(mainCameraTransform.right.x, 0, mainCameraTransform.right.z).normalized;
@@ -313,7 +322,10 @@ public class PlayerMover : MonoBehaviour
         playerVelocity.z = move.z;
 
         playerDesiredXZDirection = currentSpeed * Time.deltaTime * move;
+    }
 
+    private void MovePlayerOnXZ()
+    {
         if (!isUsingRigidBody)
             characterController.Move(playerDesiredXZDirection);
         else
@@ -322,18 +334,25 @@ public class PlayerMover : MonoBehaviour
 
     private void DoJumpLogic()
     {
-
-        if (isJumpPressed && (isGrounded || canDoubleJump))
+        if (isJumpPressed && (isGrounded || availableJumpsCount > 0 || isHooking))
+        {
             playerVelocity.y = jumpHeight;
+            availableJumpsCount--;
+        }
 
-        if (!isUsingRigidBody)
+        if (!isUsingRigidBody && !isRubbingAgainstWall)
         {
             ApplyGravity();
             characterController.Move(playerVelocity.y * Time.deltaTime * Vector3.up);
         }
+    }
 
-        if (isJumpPressed && !isGrounded && canDoubleJump)
-            canDoubleJump = false;
+    private void CheckIfRubbingAgainstWall()
+    {
+        isRubbingAgainstWall =
+            isCollidingWithWall &&
+            isJumpPressedContinuously &&
+            Vector3.Dot(playerDesiredXZDirection, collisionWithWallNormal) < 0;
     }
 
     private void MovePlayerWhileRubbingOnWall()
@@ -405,10 +424,10 @@ public class PlayerMover : MonoBehaviour
         configurableJoint.linearLimit = new SoftJointLimit() { limit = limit };
     }
 
-    private void CheckIfCanDoubleJump()
+    private void AddJump()
     {
-        if (isGrounded || isCollidingWithWall)
-            canDoubleJump = true;
+        if (availableJumpsCount < maxJumps)
+            availableJumpsCount++;
     }
 
     private bool IsPlayerStartingHooking(out RaycastHit hit)

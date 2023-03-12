@@ -1742,6 +1742,7 @@ MonoBehaviour:
   minSpeed: 7.5
   inputSmoothTimer: 0.2
   jumpHeight: 6
+  maxJumps: 2
   gravityValue: -9.81
   hookPointPrefab: {fileID: 2044809809571121278, guid: 881e1548c4e097540b1dabb3f00892a0, type: 3}
   hookRewindForce: 20
