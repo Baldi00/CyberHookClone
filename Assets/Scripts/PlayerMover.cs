@@ -154,7 +154,7 @@ public class PlayerMover : MonoBehaviour
         afterHookForceTimer += Time.deltaTime;
         if (afterHookForceTimer > afterHookForceDuration)
             afterHookForceTimer = afterHookForceDuration;
-        
+
         if (isRubbingAgainstWall)
             MovePlayerWhileRubbingOnWall();
         else
@@ -167,7 +167,12 @@ public class PlayerMover : MonoBehaviour
             StopHooking();
 
         if (IsPlayerRewindingHook())
+        {
+            rigidBody.useGravity = false;
             RewindHook();
+        }
+        else
+            rigidBody.useGravity = true;
 
         DoJumpLogic();
 
