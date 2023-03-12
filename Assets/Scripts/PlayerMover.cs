@@ -46,6 +46,8 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float hookRewindSpeedAcceleration = 3.5f;
     [SerializeField]
+    private float afterHookForceDuration = 1f;
+    [SerializeField]
     private LineRenderer hookLineRenderer;
     [SerializeField]
     private Transform handPositionTransform;
@@ -95,6 +97,8 @@ public class PlayerMover : MonoBehaviour
 
     private bool isHooking;
     private Rigidbody hookPointRigidBody;
+    private Vector3 afterHookForce;
+    private float afterHookForceTimer;
 
     private float unusedCurrentVelocity1;
     private float unusedCurrentVelocity2;
@@ -147,6 +151,10 @@ public class PlayerMover : MonoBehaviour
         ComputePlayerDesiredDirection();
         CheckIfRubbingAgainstWall();
 
+        afterHookForceTimer += Time.deltaTime;
+        if (afterHookForceTimer > afterHookForceDuration)
+            afterHookForceTimer = afterHookForceDuration;
+        
         if (isRubbingAgainstWall)
             MovePlayerWhileRubbingOnWall();
         else
@@ -202,6 +210,8 @@ public class PlayerMover : MonoBehaviour
         float newLimit = Mathf.Max(0.1f, configurableJoint.linearLimit.limit - hookRewindForce * Time.deltaTime);
         SetJointLimit(newLimit);
 
+        afterHookForce = (hookPointRigidBody.transform.position - transform.position).normalized * hookRewindForce;
+
         currentSpeed += hookRewindSpeedAcceleration * Time.deltaTime;
         if (currentSpeed > maxSpeed)
             currentSpeed = maxSpeed;
@@ -215,6 +225,10 @@ public class PlayerMover : MonoBehaviour
     private void StopHooking()
     {
         isHooking = false;
+
+        if (!isMousePressedContinuously)
+            afterHookForce = Vector3.zero;
+        afterHookForceTimer = 0;
 
         rigidBody.isKinematic = false;
         characterController.enabled = true;
@@ -327,16 +341,20 @@ public class PlayerMover : MonoBehaviour
     private void MovePlayerOnXZ()
     {
         if (!isUsingRigidBody)
-            characterController.Move(playerDesiredXZDirection);
+        {
+            Vector3 currentAfterHookForce = Vector3.Lerp(afterHookForce, Vector3.zero, afterHookForceTimer / afterHookForceDuration);
+            characterController.Move(playerDesiredXZDirection + currentAfterHookForce * Time.deltaTime);
+        }
         else
             rigidBody.AddForce(playerDesiredXZDirection, ForceMode.VelocityChange);
     }
 
     private void DoJumpLogic()
     {
-        if (isJumpPressed && (isGrounded || availableJumpsCount > 0 || isHooking))
+        if (isJumpPressed && (isGrounded || availableJumpsCount > 0))
         {
-            playerVelocity.y = jumpHeight;
+            if (!isHooking)
+                playerVelocity.y = jumpHeight;
             availableJumpsCount--;
         }
 
