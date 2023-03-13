@@ -315,7 +315,9 @@ public class PlayerMover : MonoBehaviour
 
     private bool IsPlayerMoving()
     {
-        return rawMoveInput.sqrMagnitude > 0.1f;
+        return (!isUsingRigidBody && playerVelocity.sqrMagnitude > 0.1f) || 
+            (isUsingRigidBody && rigidBody.velocity.sqrMagnitude > 0.1f) || 
+            (isHooking && isMousePressedContinuously);
     }
 
     private void IncrementSpeed()
