@@ -457,7 +457,7 @@ public class PlayerMover : MonoBehaviour
     {
         hit = new RaycastHit();
         return isMousePressed &&
-            Physics.Raycast(mainCameraTransform.position, mainCameraTransform.forward, out hit) &&
+            Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out hit) &&
             !hit.collider.CompareTag("Player") &&
             !isHooking;
     }
