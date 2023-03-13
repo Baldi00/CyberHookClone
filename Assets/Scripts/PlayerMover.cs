@@ -42,6 +42,8 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private GameObject hookPointPrefab;
     [SerializeField]
+    private float hookMaxDistance = 20f;
+    [SerializeField]
     private float hookRewindForce = 20f;
     [SerializeField]
     private float hookRewindSpeedAcceleration = 3.5f;
@@ -51,6 +53,8 @@ public class PlayerMover : MonoBehaviour
     private LineRenderer hookLineRenderer;
     [SerializeField]
     private Transform handPositionTransform;
+    [SerializeField]
+    private Transform hookCrosshair;
 
     [Header("Camera Effects")]
     [SerializeField]
@@ -159,6 +163,8 @@ public class PlayerMover : MonoBehaviour
             MovePlayerWhileRubbingOnWall();
         else
             MovePlayerOnXZ();
+
+        UpdateHookCrosshair();
 
         if (IsPlayerStartingHooking(out RaycastHit hit))
             StartHooking(hit);
@@ -315,8 +321,8 @@ public class PlayerMover : MonoBehaviour
 
     private bool IsPlayerMoving()
     {
-        return (!isUsingRigidBody && playerVelocity.sqrMagnitude > 0.1f) || 
-            (isUsingRigidBody && rigidBody.velocity.sqrMagnitude > 0.1f) || 
+        return (!isUsingRigidBody && playerVelocity.sqrMagnitude > 0.1f) ||
+            (isUsingRigidBody && rigidBody.velocity.sqrMagnitude > 0.1f) ||
             (isHooking && isMousePressedContinuously);
     }
 
@@ -459,8 +465,26 @@ public class PlayerMover : MonoBehaviour
     {
         hit = new RaycastHit();
         return isMousePressed &&
-            Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out hit) &&
+            Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out hit, hookMaxDistance) &&
             !hit.collider.CompareTag("Player") &&
             !isHooking;
+    }
+
+    private void UpdateHookCrosshair()
+    {
+        if (Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out RaycastHit hit, hookMaxDistance))
+        {
+            float distance = hit.distance;
+            if (distance <= hookMaxDistance)
+            {
+                float scale = Mathf.InverseLerp(0, hookMaxDistance, distance);
+                hookCrosshair.gameObject.SetActive(true);
+                hookCrosshair.localScale = Vector3.one * scale;
+            }
+            else
+                hookCrosshair.gameObject.SetActive(false);
+        }
+        else
+            hookCrosshair.gameObject.SetActive(false);
     }
 }
