@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// Shoots a bullet if the player presses the correct button
+/// </summary>
 public class PlayerShooter : MonoBehaviour
 {
     [SerializeField]

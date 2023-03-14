@@ -1,7 +1,8 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Moves the bullet forward at a set speed
+/// </summary>
 public class BulletMover : MonoBehaviour
 {
     [SerializeField]
