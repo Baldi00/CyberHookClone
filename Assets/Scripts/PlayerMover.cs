@@ -151,17 +151,26 @@ public class PlayerMover : MonoBehaviour
 
     void OnGUI()
     {
-        GUI.Label(new Rect(10f, 10f, 200f, 20f), "Speed: " + currentSpeed);
-        GUI.Label(new Rect(10f, 30f, 200f, 20f), "Grounded: " + isGrounded);
-        GUI.Label(new Rect(10f, 50f, 200f, 20f), "Jump count: " + availableJumpsCount);
-        GUI.Label(new Rect(10f, 70f, 200f, 20f), "Wall collision: " + isCollidingWithWall);
-        GUI.Label(new Rect(10f, 90f, 200f, 20f), "Rubbing: " + isRubbingAgainstWall);
-        GUI.Label(new Rect(10f, 110f, 200f, 20f), "RB: " + isUsingRigidBody);
+        //GUI.Label(new Rect(10f, 10f, 200f, 20f), "Speed: " + currentSpeed);
+        //GUI.Label(new Rect(10f, 30f, 200f, 20f), "Grounded: " + isGrounded);
+        //GUI.Label(new Rect(10f, 50f, 200f, 20f), "Jump count: " + availableJumpsCount);
+        //GUI.Label(new Rect(10f, 70f, 200f, 20f), "Wall collision: " + isCollidingWithWall);
+        //GUI.Label(new Rect(10f, 90f, 200f, 20f), "Rubbing: " + isRubbingAgainstWall);
+        //GUI.Label(new Rect(10f, 110f, 200f, 20f), "RB: " + isUsingRigidBody);
     }
 
     public void SetBulletTime(bool active)
     {
         currentHookMaxDistance = active ? hookMaxDistanceBulletTime : hookMaxDistance;
+    }
+
+    public float GetCurrentSpeed()
+    {
+        return currentSpeed;
+    }
+    public float GetCurrentSpeedPercentage()
+    {
+        return currentSpeedPercentage;
     }
 
     /// <summary>
