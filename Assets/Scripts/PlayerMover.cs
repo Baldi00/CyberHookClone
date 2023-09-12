@@ -242,6 +242,7 @@ public class PlayerMover : MonoBehaviour
             DecrementSpeed();
 
         currentSpeedPercentage = Mathf.InverseLerp(minSpeed, maxSpeed, currentSpeed);
+        SoundManager.Instance.SetWindVolume(currentSpeedPercentage);
     }
 
     /// <summary>
@@ -474,6 +475,8 @@ public class PlayerMover : MonoBehaviour
         SetJointConnectedBody(hookPointRigidBody);
         SetJointMotion(ConfigurableJointMotion.Limited);
         SetJointLimit(distanceFromHookPoint);
+
+        SoundManager.Instance.PlayHook();
     }
 
     /// <summary>
@@ -549,6 +552,7 @@ public class PlayerMover : MonoBehaviour
             if (!isHooking)
                 playerVelocity.y = jumpHeight;
             availableJumpsCount--;
+            SoundManager.Instance.PlayJump();
         }
 
         if (!isUsingRigidBody && !isRubbingAgainstWall)
@@ -586,6 +590,7 @@ public class PlayerMover : MonoBehaviour
                 cinemachineVirtualCamera.m_Lens.Dutch = dutchAngle;
                 invertDutch = !invertDutch;
                 dutchChangeTimer = 0;
+                SoundManager.Instance.PlayFootstep();
             }
         }
         else

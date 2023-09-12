@@ -19,6 +19,9 @@ public class PlayerShooter : MonoBehaviour
     void Update()
     {
         if (Mouse.current.rightButton.wasPressedThisFrame)
+        {
             Instantiate(bulletPrefab, mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.rotation);
+            SoundManager.Instance.PlayShoot();
+        }
     }
 }

@@ -26,21 +26,19 @@ public class BulletTimeManager : MonoBehaviour
     {
         if (Keyboard.current.leftShiftKey.wasPressedThisFrame)
         {
+            Time.timeScale = 0.3f;
             playerMover.SetBulletTime(true);
             StopAllCoroutines();
             StartCoroutine(StartPostProcessAnimation());
+            SoundManager.Instance.PlayBulletTime();
         }
         if (Keyboard.current.leftShiftKey.wasReleasedThisFrame)
         {
             playerMover.SetBulletTime(false);
             StopAllCoroutines();
             StartCoroutine(StopPostProcessAnimation());
-        }
-
-        if (Keyboard.current.leftShiftKey.isPressed)
-            Time.timeScale = 0.3f;
-        else
             Time.timeScale = 1f;
+        }
     }
 
     private IEnumerator StartPostProcessAnimation()
