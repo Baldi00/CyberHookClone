@@ -1,7 +1,6 @@
 using Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
@@ -38,6 +37,8 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float hookMaxDistance = 20f;
     [SerializeField]
+    private float hookMaxDistanceBulletTime = 30f;
+    [SerializeField]
     private float hookRewindForce = 20f;
     [SerializeField]
     private float hookRewindSpeedAcceleration = 3.5f;
@@ -62,6 +63,8 @@ public class PlayerMover : MonoBehaviour
     private float finalDutchDuration = 0.25f;
     [SerializeField]
     private float maxCameraNoise = 1.5f;
+    [SerializeField]
+    private Material speedPostProcessEffectMaterial;
 
     private DefaultInputActions inputManager;
     private CharacterController characterController;
@@ -98,6 +101,7 @@ public class PlayerMover : MonoBehaviour
     private Rigidbody hookPointRigidBody;
     private Vector3 afterHookForce;
     private float afterHookForceTimer;
+    private float currentHookMaxDistance;
 
     private float unusedCurrentVelocity1;
     private float unusedCurrentVelocity2;
@@ -112,6 +116,8 @@ public class PlayerMover : MonoBehaviour
         currentSpeed = playerInitialSpeed;
         smoothMoveInput = Vector2.zero;
         availableJumpsCount = 2;
+
+        currentHookMaxDistance = hookMaxDistance;
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -139,6 +145,7 @@ public class PlayerMover : MonoBehaviour
         DoJumpLogic();
         ApplyDutchToCamera();
         ApplyNoiseToCamera();
+        ApplySpeedPostProcessEffect();
         UpdateHookLineRenderer();
     }
 
@@ -150,6 +157,11 @@ public class PlayerMover : MonoBehaviour
         GUI.Label(new Rect(10f, 70f, 200f, 20f), "Wall collision: " + isCollidingWithWall);
         GUI.Label(new Rect(10f, 90f, 200f, 20f), "Rubbing: " + isRubbingAgainstWall);
         GUI.Label(new Rect(10f, 110f, 200f, 20f), "RB: " + isUsingRigidBody);
+    }
+
+    public void SetBulletTime(bool active)
+    {
+        currentHookMaxDistance = active ? hookMaxDistanceBulletTime : hookMaxDistance;
     }
 
     /// <summary>
@@ -224,7 +236,7 @@ public class PlayerMover : MonoBehaviour
     /// </summary>
     private void UpdatePlayerSpeed()
     {
-        if ((IsPlayerMoving() || !isGrounded) && (!isCollidingWithWall || isRubbingAgainstWall))
+        if (IsPlayerMoving() || !isGrounded)
             IncrementSpeed();
         else
             DecrementSpeed();
@@ -369,13 +381,13 @@ public class PlayerMover : MonoBehaviour
     {
         if (Physics.Raycast(
             mainCameraTransform.position + mainCameraTransform.forward,
-            mainCameraTransform.forward, out RaycastHit hit, hookMaxDistance)
+            mainCameraTransform.forward, out RaycastHit hit, currentHookMaxDistance)
             && hit.collider.CompareTag("Hookable"))
         {
             float distance = hit.distance;
-            if (distance <= hookMaxDistance)
+            if (distance <= currentHookMaxDistance)
             {
-                float scale = Mathf.InverseLerp(0, hookMaxDistance, distance);
+                float scale = Mathf.InverseLerp(0, currentHookMaxDistance, distance);
                 hookCrosshair.gameObject.SetActive(true);
                 hookCrosshair.localScale = Vector3.one * scale;
             }
@@ -417,7 +429,7 @@ public class PlayerMover : MonoBehaviour
     {
         hit = new RaycastHit();
         return isMousePressed &&
-            Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out hit, hookMaxDistance) &&
+            Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out hit, currentHookMaxDistance) &&
             hit.collider.CompareTag("Hookable") &&
             !isHooking;
     }
@@ -498,7 +510,7 @@ public class PlayerMover : MonoBehaviour
         if (currentSpeed > maxSpeed)
             currentSpeed = maxSpeed;
     }
-    
+
     /// <summary>
     /// Sets the connected rigidbody of the configurable joint for the hook effect
     /// </summary>
@@ -506,7 +518,7 @@ public class PlayerMover : MonoBehaviour
     {
         configurableJoint.connectedBody = rigidbody;
     }
-    
+
     /// <summary>
     /// Sets the xyz motion state of the configurable joint for the hook effect
     /// </summary>
@@ -578,6 +590,14 @@ public class PlayerMover : MonoBehaviour
         }
         else
             cinemachineVirtualCamera.m_Lens.Dutch = 0;
+    }
+
+    /// <summary>
+    /// Applies a radial post process effect according to the player current speed.
+    /// </summary>
+    private void ApplySpeedPostProcessEffect()
+    {
+        speedPostProcessEffectMaterial.SetFloat("_Speed", currentSpeedPercentage);
     }
 
     /// <summary>
