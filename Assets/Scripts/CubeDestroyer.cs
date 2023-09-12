@@ -8,14 +8,9 @@ public class CubeDestroyer : MonoBehaviour
     [SerializeField]
     private GameObject cubeDestroyEffectPrefab;
 
-    void OnCollisionEnter(Collision collision)
+    public void DestroyCube()
     {
-        if (collision.gameObject.CompareTag("Bullet"))
-        {
-            ParticleSystem ps = Instantiate(cubeDestroyEffectPrefab, transform.position, Quaternion.identity).GetComponent<ParticleSystem>();
-            Destroy(gameObject);
-            Destroy(collision.gameObject);
-        }
-
+        ParticleSystem ps = Instantiate(cubeDestroyEffectPrefab, transform.position, Quaternion.identity).GetComponent<ParticleSystem>();
+        Destroy(gameObject);
     }
 }
