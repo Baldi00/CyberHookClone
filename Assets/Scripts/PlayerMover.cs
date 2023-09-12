@@ -229,7 +229,7 @@ public class PlayerMover : MonoBehaviour
     /// </summary>
     private void UpdatePlayerSpeed()
     {
-        if (IsPlayerMoving() || !isGrounded)
+        if ((IsPlayerMoving() || !isGrounded) && (!isCollidingWithWall || isRubbingAgainstWall))
             IncrementSpeed();
         else
             DecrementSpeed();
@@ -372,7 +372,10 @@ public class PlayerMover : MonoBehaviour
     /// </summary>
     private void UpdateHookCrosshair()
     {
-        if (Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out RaycastHit hit, hookMaxDistance))
+        if (Physics.Raycast(
+            mainCameraTransform.position + mainCameraTransform.forward,
+            mainCameraTransform.forward, out RaycastHit hit, hookMaxDistance)
+            && hit.collider.CompareTag("Hookable"))
         {
             float distance = hit.distance;
             if (distance <= hookMaxDistance)
@@ -420,7 +423,7 @@ public class PlayerMover : MonoBehaviour
         hit = new RaycastHit();
         return isMousePressed &&
             Physics.Raycast(mainCameraTransform.position + mainCameraTransform.forward, mainCameraTransform.forward, out hit, hookMaxDistance) &&
-            !hit.collider.CompareTag("Player") &&
+            hit.collider.CompareTag("Hookable") &&
             !isHooking;
     }
 
