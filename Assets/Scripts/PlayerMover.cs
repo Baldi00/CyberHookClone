@@ -157,11 +157,6 @@ public class PlayerMover : MonoBehaviour
     /// </summary>
     private void ReadInput()
     {
-        // TODO: Remove from here
-        // Reload scene for testing
-        if (Keyboard.current.rKey.wasPressedThisFrame)
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-
         isJumpPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
         isJumpPressedContinuously = Keyboard.current.spaceKey.isPressed;
         isMousePressed = Mouse.current.leftButton.wasPressedThisFrame;
