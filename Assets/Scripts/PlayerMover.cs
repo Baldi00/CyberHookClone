@@ -291,7 +291,9 @@ public class PlayerMover : MonoBehaviour
     private void DoCollisionWithWallsCheck()
     {
         float distance = playerDesiredXZDirection.magnitude + 0.5f;
-        isCollidingWithWall = DoCapsuleCast(playerDesiredXZDirection.normalized, distance, out RaycastHit hit);
+        isCollidingWithWall =
+            DoCapsuleCast(playerDesiredXZDirection.normalized, distance, out RaycastHit hit) &&
+            !hit.collider.CompareTag("Bullet");
 
         if (isCollidingWithWall)
             collisionWithWallNormal = hit.normal;
