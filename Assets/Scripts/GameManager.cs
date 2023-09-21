@@ -25,6 +25,11 @@ public class GameManager : MonoBehaviour
 
 		inputManager = new DefaultInputActions();
 		inputManager.Enable();
-	}
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+		SoundManager.Instance.PlayBackgroundMusic();
+    }
 
 }

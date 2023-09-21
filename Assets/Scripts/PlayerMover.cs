@@ -118,9 +118,6 @@ public class PlayerMover : MonoBehaviour
         availableJumpsCount = 2;
 
         currentHookMaxDistance = hookMaxDistance;
-
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
     }
 
     void Start()

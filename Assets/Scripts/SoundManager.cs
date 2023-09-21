@@ -34,15 +34,26 @@ public class SoundManager : MonoBehaviour
     }
 
     public void PlayFootstep() => source.PlayOneShot(footstep);
-	public void PlayShoot() => source.PlayOneShot(shoot);
-	public void PlayHook() => source.PlayOneShot(hook);
-	public void PlayBulletTime() => source.PlayOneShot(bulletTime);
-	public void PlayJump() => source.PlayOneShot(jump);
-	public void PlayVictory() => source.PlayOneShot(victory);
+    public void PlayShoot() => source.PlayOneShot(shoot);
+    public void PlayHook() => source.PlayOneShot(hook);
+    public void PlayBulletTime() => source.PlayOneShot(bulletTime);
+    public void PlayJump() => source.PlayOneShot(jump);
+    public void PlayVictory() => source.PlayOneShot(victory);
 
     public void SetWindVolume(float percentage)
     {
         wind.volume = percentage;
+    }
+
+    public void PlayBackgroundMusic()
+    {
+        if (!source.isPlaying)
+            source.Play();
+    }
+
+    public void StopBackgroundMusic()
+    {
+        source.Stop();
     }
 
 }
