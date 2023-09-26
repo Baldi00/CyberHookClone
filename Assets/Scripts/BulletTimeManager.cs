@@ -41,6 +41,14 @@ public class BulletTimeManager : MonoBehaviour
         }
     }
 
+    void OnDisable()
+    {
+        chromaticAberration.intensity.Override(0);
+        vignette.intensity.Override(0);
+        chromaticAberration.active = false;
+        vignette.active = false;
+    }
+
     private IEnumerator StartPostProcessAnimation()
     {
 

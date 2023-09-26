@@ -156,6 +156,11 @@ public class PlayerMover : MonoBehaviour
         //GUI.Label(new Rect(10f, 110f, 200f, 20f), "RB: " + isUsingRigidBody);
     }
 
+    void OnDisable()
+    {
+        speedPostProcessEffectMaterial.SetFloat("_Speed", 0);
+    }
+
     public void SetBulletTime(bool active)
     {
         currentHookMaxDistance = active ? hookMaxDistanceBulletTime : hookMaxDistance;
