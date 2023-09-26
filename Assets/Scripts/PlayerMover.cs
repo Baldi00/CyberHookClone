@@ -25,6 +25,14 @@ public class PlayerMover : MonoBehaviour
     [SerializeField]
     private float inputSmoothTimer = 0.1f;
 
+    [Header("Camera")]
+    [SerializeField]
+    private float cameraSpeed = 2;
+    [SerializeField]
+    private float minCameraAngle = -85;
+    [SerializeField]
+    private float maxCameraAngle = 85;
+
     [Header("Jump & Gravity")]
     [SerializeField]
     private float jumpHeight = 1.0f;
@@ -106,6 +114,9 @@ public class PlayerMover : MonoBehaviour
     private float unusedCurrentVelocity1;
     private float unusedCurrentVelocity2;
 
+    private float currentCameraXRotation;
+    private float currentCameraYRotation;
+
     void Awake()
     {
         mainCameraTransform = Camera.main.transform;
@@ -128,6 +139,7 @@ public class PlayerMover : MonoBehaviour
 
     void Update()
     {
+        SetCameraRotation();
         ReadInput();
         SmoothMoveInput();
         DoPlayerGroundedCheck();
@@ -146,6 +158,7 @@ public class PlayerMover : MonoBehaviour
         UpdateHookLineRenderer();
     }
 
+
     void OnGUI()
     {
         //GUI.Label(new Rect(10f, 10f, 200f, 20f), "Speed: " + currentSpeed);
@@ -159,6 +172,19 @@ public class PlayerMover : MonoBehaviour
     void OnDisable()
     {
         speedPostProcessEffectMaterial.SetFloat("_Speed", 0);
+    }
+
+    /// <summary>
+    /// Sets the camera rotation
+    /// </summary>
+    private void SetCameraRotation()
+    {
+        currentCameraYRotation += Input.GetAxis("Mouse X") * cameraSpeed;
+        currentCameraXRotation -= Input.GetAxis("Mouse Y") * cameraSpeed;
+        currentCameraXRotation = Mathf.Clamp(currentCameraXRotation, minCameraAngle, maxCameraAngle);
+        transform.eulerAngles = new Vector3(0, currentCameraYRotation, 0.0f);
+        cinemachineVirtualCamera.transform.eulerAngles =
+            new Vector3(currentCameraXRotation, currentCameraYRotation, 0.0f);
     }
 
     public void SetBulletTime(bool active)
