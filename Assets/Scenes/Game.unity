@@ -11575,7 +11575,7 @@ MonoBehaviour:
   inputSmoothTimer: 0.2
   cameraSpeed: 3
   minCameraAngle: -85
-  maxCameraAngle: -85
+  maxCameraAngle: 85
   jumpHeight: 6
   gravityValue: -9.81
   hookPointPrefab: {fileID: 2044809809571121278, guid: 881e1548c4e097540b1dabb3f00892a0, type: 3}
