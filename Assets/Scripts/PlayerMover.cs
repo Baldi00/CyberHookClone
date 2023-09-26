@@ -273,7 +273,7 @@ public class PlayerMover : MonoBehaviour
     /// </summary>
     private void UpdatePlayerSpeed()
     {
-        if (IsPlayerMoving() || !isGrounded)
+        if ((IsPlayerMoving() && !isCollidingWithWall) || (isCollidingWithWall && isRubbingAgainstWall) || !isGrounded)
             IncrementSpeed();
         else
             DecrementSpeed();
@@ -321,7 +321,7 @@ public class PlayerMover : MonoBehaviour
         float distance = playerDesiredXZDirection.magnitude + 0.5f;
         isCollidingWithWall =
             DoCapsuleCast(playerDesiredXZDirection.normalized, distance, out RaycastHit hit) &&
-            !hit.collider.CompareTag("Bullet");
+            !hit.collider.CompareTag("Bullet") && hit.collider.gameObject.layer != 2;
 
         if (isCollidingWithWall)
             collisionWithWallNormal = hit.normal;

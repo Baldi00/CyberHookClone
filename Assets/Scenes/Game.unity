@@ -10603,7 +10603,7 @@ GameObject:
   - component: {fileID: 1618206531}
   - component: {fileID: 1618206530}
   - component: {fileID: 1618206529}
-  m_Layer: 0
+  m_Layer: 2
   m_Name: Floor1 (6)
   m_TagString: Hookable
   m_Icon: {fileID: 0}
@@ -11569,7 +11569,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerInitialSpeed: 7.5
   speedAcceleration: 2.5
-  speedDeceleration: 50
+  speedDeceleration: 30
   maxSpeed: 30
   minSpeed: 7.5
   inputSmoothTimer: 0.2
