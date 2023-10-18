@@ -8,13 +8,13 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: SpeedPostProcessEffect
-  m_Shader: {fileID: -6465566751694194690, guid: e9e12d656677a2540913178fcc144665, type: 3}
+  m_Shader: {fileID: -6465566751694194690, guid: e4a12e583b9c5b94a957515ca36e47e2, type: 3}
   m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2000
+  m_CustomRenderQueue: -1
   stringTagMap:
     RenderType: Opaque
   disabledShaderPasses: []
@@ -53,6 +53,7 @@ Material:
     - _QueueControl: 0
     - _QueueOffset: 0
     - _RadialNoiseFactor: 1
+    - _RotationSpeed: 3.1415927
     - _SimpleNoiseFactor: 0.2
     - _Speed: 0
     - _SrcBlend: 1
